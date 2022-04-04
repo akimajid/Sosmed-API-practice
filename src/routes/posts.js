@@ -1,101 +1,188 @@
-const { Post } = require("../lib/sequelize")
-const { Op } = require("sequelize")
-
 const router = require("express").Router()
+const { Post, User, Like } = require("../lib/sequelize")
+const { Op } = require("sequelize")
+const fileUploader = require("../lib/uploader")
+const { authorizedLoggedInUser } = require("../middlewares/authMiddleware")
 
-router.get("/", async (req, res) => {
-    try {
-        const { _limit = 30, _page = 1 } = req.query
+router.get("/", authorizedLoggedInUser, async (req, res) => {
+  try {
+    const { _limit = 30, _page = 1 } = req.query
 
-        delete req.query._limit
-        delete req.query._page
+    delete req.query._limit
+    delete req.query._page
 
-        const findPosts = await Post.findAndCountAll({
-            where: {
-                ...req.query
-            },
-            limit: _limit ? parseInt(_limit) : undefined,
-            offset: (_page - 1) * _limit
-        })
+    const findPosts = await Post.findAndCountAll({
+      where: {
+        ...req.query
+      },
+      limit: _limit ? parseInt(_limit) : undefined,
+      offset: (_page - 1) * _limit,
+      include: [
+        {
+          model: User,
+          attributes: {
+            exclude: ["password"]
+          }
+        }
+      ],
+    })
 
-        res.status(200).json({
-            message: "All posts",
-            result: findPosts
-        })
-    } catch (err) {
-        res.status(500).json({
-            message: "Server error"
-        })
-    }
+    return res.status(200).json({
+      message: "Find posts",
+      result: findPosts
+    })
+  } catch (err) {
+    console.log(err)
+    return res.status(500).json({
+      message: "Server error"
+    })
+  }
 })
-router.post("/", async (req, res) => {
-    try {
-        const { image_url, caption, location } = req.body
 
-        const newPost = await Post.create({
-            image_url,
-            caption,
-            location
-        })
+router.post("/",
+authorizedLoggedInUser, 
+fileUploader({
+  destinationFolder: "posts",
+  fileType: "image",
+  prefix: "POST"
+}).single("post_image_file"), 
+async (req, res) => {
+  try {
+    const { caption, location } = req.body;
 
-        res.status(201).json({
-            message: "Post created",
-            result: newPost
-        })
+    const uploadFileDomain = process.env.UPLOAD_FILE_DOMAIN
+    const filePath = "post_images"
+    const { fileName } = req.file
 
-        Post
-    } catch (err) {
-        res.status(500).json({
-            message: "Server error"
-        })
-    }
+    const newPost = await Post.create({
+      image_url: `${uploadFileDomain}/${filePath}/${fileName}`,
+      caption,
+      location,
+      user_id: req.token.id
+    })
+
+    return res.status(201).json({
+      message: "Post created",
+      result: newPost
+    })
+  } catch (err) {
+    console.log(err)
+    return res.status(500).json({
+      message: "Server error"
+    })
+  }
 })
+
 router.patch("/:id", async (req, res) => {
-    try {
-        const { id } = req.params
+  try {
+    const { id } = req.params;
 
-        const updateData = await Post.update(
-            {
-                ...req.body
-            },
-            {
-                where: {
-                    id
-                }
-            }
-        )
+    const updatedPost = await Post.update(
+      {
+        ...req.body
+      },
+      {
+        where: {
+          id
+        }
+      }
+    )
 
-        res.status(200).json({
-            message: "Post edited",
-            result: updateData
-        })
-    } catch (err) {
-        res.status(500).json({
-            message: "Server error"
-        })
-    }
+    return res.status(201).json({
+      message: "Updated post",
+      result: updatedPost
+    })
+  } catch (error) {
+    console.log(err)
+    return res.status(500).json({
+      message: "Server error"
+    })
+  }
 })
+
 router.delete("/:id", async (req, res) => {
-    try {
-        const { id } = req.params
+  try {
+    const { id } = req.params;
 
-        const deleteData = await Post.destroy(
-            {
-                where: {
-                    id
-                }
-            }
-        )
+    const deletedPost = await Post.destroy({
+      where: {
+        id
+      }
+    })
 
-        res.status(200).json({
-            message: "Post deleted",
-            result: deleteData
-        })
-    } catch (err) {
-        res.status(500).json({
-            message: "Server error"
-        })
+    return res.status(201).json({
+      message: "Deleted post",
+      result: deletedPost
+    })
+  } catch (error) {
+    console.log(err)
+    return res.status(500).json({
+      message: "Server error"
+    })
+  }
+})
+
+router.get("/:id/likes", async (req, res) => {
+  try {
+    const { id } = req.params
+    const postLikes = await Like.findAll({
+      where: {
+        PostId: id
+      },
+      include: User
+    })
+
+    return res.status(200).json({
+      message: "Fetch likes",
+      result: postLikes
+    })
+  } catch (err) {
+    console.log(err)
+    return res.status(500).json({
+      message: "Server error"
+    })
+  }
+})
+
+router.post("/:postId/likes/:userId", async (req, res) => {
+  try {
+    const { userId, postId } = req.params
+
+    const [ newPost, didCreatePost ] = await Like.findOrCreate({
+      where: {
+        post_id: postId,
+        user_id: userId
+      },
+      defaults: {
+        ...req.body
+      }
+    })
+
+    if (!didCreatePost) {
+      return res.status(400).json({
+        message: "User already liked post"
+      })
     }
+
+    await Post.increment(
+      { like_count: 1 },
+      {
+        where: {
+          id: postId
+        }
+      }
+    )
+
+    return res.status(200).json({
+      message: "Liked post"
+    })
+
+  } catch (err) {
+    console.log(err)
+    res.status(500).json({
+      message: "Server error"
+    })
+  }
 })
 
 module.exports = router

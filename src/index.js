@@ -9,20 +9,22 @@ const PORT = process.env.PORT
 const { sequelize } = require("./lib/sequelize")
 sequelize.sync({ alter: true })
 
-const app = express()
+const app = express();
 
-app.use(cors())
+app.use(cors());
 app.use(express.json())
 
 app.get("/", (req, res) => {
-    res.send("<h1>Pict perfect API</h1>")
+  res.send("<h1>Pict perfect API</h1>")
 })
 
-const { postRoutes } = require("./routes")
+const { postRoutes, authRoutes } = require("./routes")
+
+app.use("/post_images", express.static(`${__dirname}/public/posts`))
 
 app.use("/posts", postRoutes)
-
+app.use("/auth", authRoutes)
 
 app.listen(PORT, () => {
-    console.log("Listening in port", PORT)
+  console.log("Listening in port", PORT)
 })
