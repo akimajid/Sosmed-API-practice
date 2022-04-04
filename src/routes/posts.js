@@ -2,9 +2,9 @@ const router = require("express").Router()
 const { Post, User, Like } = require("../lib/sequelize")
 const { Op } = require("sequelize")
 const fileUploader = require("../lib/uploader")
-const { authorizedLoggedInUser } = require("../middlewares/authMiddleware")
+const { authorizedLoggedInUser, authorizeUserWithRole } = require("../middlewares/authMiddleware")
 
-router.get("/", authorizedLoggedInUser, async (req, res) => {
+router.get("/", authorizedLoggedInUser,authorizeUserWithRole(["admin"]), async (req, res) => {
   try {
     const { _limit = 30, _page = 1 } = req.query
 
