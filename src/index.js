@@ -18,12 +18,13 @@ app.get("/", (req, res) => {
   res.send("<h1>Pict perfect API</h1>")
 })
 
-const { postRoutes, authRoutes } = require("./routes")
+const { postRoutes, authRoutes, userRoutes } = require("./routes")
 
 app.use("/post_images", express.static(`${__dirname}/public/posts`))
 
 app.use("/posts", postRoutes)
 app.use("/auth", authRoutes)
+app.use("/users", userRoutes)
 
 app.listen(PORT, () => {
   console.log("Listening in port", PORT)

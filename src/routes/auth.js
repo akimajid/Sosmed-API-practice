@@ -1,5 +1,6 @@
 const authControllers = require("../controllers/auth");
 const { authorizedLoggedInUser } = require("../middlewares/authMiddleware");
+const AuthService = require("../services/auth");
 
 const router = require("express").Router();
 
